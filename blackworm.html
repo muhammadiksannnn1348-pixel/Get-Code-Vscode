@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Alert</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            color: #00ff00;
+            font-family: 'VT323', monospace;
+            cursor: none;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+            user-select: none;
+        }
+
+        /* MATRIX BACKGROUND */
+        #matrix {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1; opacity: 0.15; pointer-events: none;
+        }
+
+        /* GLITCH OVERLAY */
+        .glitch-overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: linear-gradient(transparent 50%, rgba(255, 0, 0, 0.08) 50%);
+            background-size: 100% 4px;
+            z-index: 2; animation: glitch-bg 0.08s infinite linear; opacity: 1;
+        }
+
+        @keyframes glitch-bg {
+            0% { transform: translate(0); }
+            20% { transform: translate(-3px, 3px); }
+            40% { transform: translate(-3px, -3px); }
+            60% { transform: translate(3px, 3px); }
+            80% { transform: translate(3px, -3px); }
+            100% { transform: translate(0); }
+        }
+
+        .warning-text {
+            position: fixed; top: 25%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 5.5vw; color: #ff0000;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 60px #ff0000;
+            z-index: 10; pointer-events: none;
+            animation: flash 0.25s infinite alternate;
+            white-space: nowrap; text-transform: uppercase; letter-spacing: 4px;
+        }
+
+        @keyframes flash { from { opacity: 0.6; } to { opacity: 1; } }
+
+        #infection-bar {
+            position: fixed; top: 35px; left: 50%; transform: translateX(-50%);
+            width: 75%; height: 45px; background: #111;
+            border: 4px solid #ff0000; box-shadow: 0 0 30px #ff0000;
+            z-index: 200; display: block;
+        }
+
+        .bar-inner {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #ff0000, #ffff00, #ff0000);
+            transition: width 0.6s linear; position: relative;
+        }
+
+        .bar-inner::after {
+            content: attr(data-text); position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); color: #000; font-size: 26px;
+            font-weight: bold; text-shadow: 0 0 8px #fff; white-space: nowrap;
+        }
+
+        #countdown {
+            position: fixed; top: 110px; left: 50%; transform: translateX(-50%);
+            font-size: 6vw; color: #ff0000; text-shadow: 0 0 40px #ff0000;
+            z-index: 150; display: block; letter-spacing: 10px;
+        }
+
+        .fake-popup {
+            position: fixed; background: #111; border: 4px solid #ff0000;
+            box-shadow: 0 0 50px #ff0000; width: 440px; min-height: 230px;
+            z-index: 1000; display: none; flex-direction: column;
+        }
+
+        .popup-header {
+            background: #ff0000; color: #000; padding: 10px 15px; font-size: 24px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .popup-body { padding: 25px; color: #fff; font-size: 26px; flex: 1;
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center;
+        }
+
+        .popup-btn {
+            padding: 14px 35px; font-size: 24px; background: #222; color: #ff0000;
+            border: 3px solid #ff0000; cursor: pointer; font-family: 'VT323', monospace;
+        }
+
+        .popup-btn:hover { background: #ff0000; color: #000; }
+
+        #fake-cursor {
+            position: fixed; width: 28px; height: 28px; border: 3px solid #ff0000;
+            pointer-events: none; z-index: 99999; display: block;
+            box-shadow: 0 0 20px #ff0000; animation: glitch-cursor 0.08s infinite;
+            mix-blend-mode: difference;
+        }
+
+        @keyframes glitch-cursor {
+            0% { transform: translate(0,0) skew(0deg); }
+            25% { transform: translate(-6px,5px) skew(8deg); }
+            50% { transform: translate(5px,-4px) skew(-6deg); }
+            75% { transform: translate(-4px,6px) skew(5deg); }
+            100% { transform: translate(0,0) skew(0deg); }
+        }
+
+        #audio-hint {
+            position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: rgba(255,0,0,0.9); color: #ffff00; padding: 15px 50px;
+            font-size: 26px; border: 4px solid #ffff00; z-index: 99999;
+            display: none; box-shadow: 0 0 30px #ff0000;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="matrix"></canvas>
+    <div class="glitch-overlay" id="glitch"></div>
+    <div class="warning-text" id="main-warning">SYSTEM COMPROMISED</div>
+
+    <div id="infection-bar">
+        <div class="bar-inner" id="progress-inner" data-text="INFECTING SYSTEM... 0%"></div>
+    </div>
+
+    <div id="countdown">DATA WILL BE DELETED IN:<br><span id="timer">02:00</span></div>
+
+    <div id="terminal" style="position:fixed;bottom:20px;left:20px;width:620px;height:260px;background:rgba(0,0,0,0.95);border:3px solid #00ff00;box-shadow:0 0 30px #00ff00;z-index:100;padding:15px;display:block;">
+        <div style="background:#00ff00;color:#000;padding:5px 10px;margin:-15px -15px 15px -15px;text-align:center;font-size:19px;">C:\BLACKWORM&gt; SYSTEM DIAGNOSTIC</div>
+        <div id="terminal-output" style="height:100%;overflow-y:auto;font-size:22px;line-height:1.3;color:#00ff00;"></div>
+    </div>
+
+    <div id="fake-cursor"></div>
+
+    <!-- AUDIO PLAYER untuk Autoplay -->
+    <audio id="bg-audio" preload="auto" autoplay muted loop>
+        <source src="/virus/audio.mp3" type="audio/mpeg">
+    </audio>
+
+    <div id="audio-hint">CLICK ANYWHERE TO ENABLE SOUND</div>
+
+    <script>
+        // ==================== AUDIO AUTOPLAY OPTIMIZED ====================
+        let audioCtx;
+        let bgAudio;
+        let isUnlocked = false;
+
+        function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            bgAudio = document.getElementById('bg-audio');
+
+            // Mulai dengan muted + autoplay (strategi terbaik untuk bypass autoplay policy)
+            bgAudio.volume = 0.78;
+            bgAudio.muted = true;
+
+            // Coba autoplay muted
+            const playPromise = bgAudio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    console.log("Autoplay diblokir, menunggu interaksi user...");
+                });
+            }
+
+            // Fungsi unlock (dipanggil saat user klik)
+            const unlockAudio = () => {
+                if (isUnlocked) return;
+                isUnlocked = true;
+
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                bgAudio.muted = false;           // buka mute
+                bgAudio.volume = 0.78;
+
+                bgAudio.play().catch(() => {});
+
+                document.getElementById('audio-hint').style.display = 'none';
+            };
+
+            // Klik di mana saja akan unlock audio
+            document.addEventListener('click', unlockAudio, { once: true });
+            document.addEventListener('touchstart', unlockAudio, { once: true });
+
+            // Tampilkan hint jika setelah 4 detik masih mute
+            setTimeout(() => {
+                if (bgAudio.muted) {
+                    document.getElementById('audio-hint').style.display = 'block';
+                }
+            }, 4000);
+        }
+
+        // Beep effects
+        function playBeep(freq, duration, type = 'square', volume = 0.6) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.type = type;
+            gain.gain.value = volume;
+            osc.start();
+            setTimeout(() => {
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.03);
+                osc.stop(audioCtx.currentTime + 0.08);
+            }, duration);
+        }
+
+        function startAlarm() {
+            setInterval(() => {
+                playBeep(720, 90, 'sawtooth', 0.75);
+                setTimeout(() => playBeep(380, 160, 'sawtooth', 0.7), 140);
+            }, 580);
+        }
+
+        function keyboardTypingSound() {
+            setInterval(() => {
+                if (Math.random() > 0.35) playBeep(1100 + Math.random()*900, 6, 'sine', 0.12);
+            }, 14);
+        }
+
+        function glitchSound() {
+            playBeep(280, 35, 'sawtooth', 0.8);
+            setTimeout(() => playBeep(920, 25, 'sawtooth', 0.6), 45);
+            setTimeout(() => playBeep(140, 70, 'sawtooth', 0.7), 90);
+        }
+
+        // ==================== MATRIX ====================
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        const chars = "01アイウエオ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()_+-=[]{}|;:,.<>?".split("");
+        let drops = [];
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0,0,0,0.06)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00ff00';
+            ctx.font = '18px VT323';
+
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+                ctx.fillText(text, i * 20, drops[i] * 20);
+                if (drops[i] * 20 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+
+        function startMatrix() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            drops = Array(Math.floor(canvas.width / 20)).fill(0).map(() => Math.random() * canvas.height / 20);
+            setInterval(drawMatrix, 35);
+        }
+
+        // ==================== POPUPS, TERMINAL, dll (sama seperti sebelumnya) ====================
+        let popupCount = 0;
+        const popupTemplates = [
+            { title: "CRITICAL ERROR", message: "TROJAN DETECTED<br>BLACKWORM v3.0 has infected your system." },
+            { title: "WORM INFECTION", message: "FILES CORRUPTED<br>Access to all drives has been revoked." },
+            { title: "SYSTEM FAILURE", message: "DATA ENCRYPTED<br>Payment required to decrypt files." },
+            { title: "ACCESS DENIED", message: "ZEUS TROJAN ACTIVE<br>Administrator privileges removed." }
+        ];
+
+        function createPopup() {
+            popupCount++;
+            const popup = document.createElement('div');
+            popup.className = 'fake-popup';
+            popup.style.left = Math.random() * (window.innerWidth - 480) + 'px';
+            popup.style.top = Math.random() * (window.innerHeight - 320) + 60 + 'px';
+            popup.style.display = 'flex';
+
+            const t = popupTemplates[Math.floor(Math.random() * popupTemplates.length)];
+            popup.innerHTML = `
+                <div class="popup-header">
+                    <span>${t.title}</span>
+                    <span style="cursor:pointer;font-size:32px;" onclick="this.closest('.fake-popup').remove(); createPopup();">×</span>
+                </div>
+                <div class="popup-body">${t.message}</div>
+                <div class="popup-buttons">
+                    <button class="popup-btn" onclick="this.closest('.fake-popup').remove(); createPopup(); createPopup();">OK</button>
+                </div>
+            `;
+            document.body.appendChild(popup);
+
+            // Drag
+            let dragging = false, ox, oy;
+            popup.querySelector('.popup-header').addEventListener('mousedown', e => {
+                if (e.target.tagName === 'SPAN') return;
+                dragging = true;
+                ox = e.clientX - popup.offsetLeft;
+                oy = e.clientY - popup.offsetTop;
+            });
+            document.addEventListener('mousemove', e => {
+                if (!dragging) return;
+                popup.style.left = (e.clientX - ox) + 'px';
+                popup.style.top = (e.clientY - oy) + 'px';
+            });
+            document.addEventListener('mouseup', () => dragging = false);
+        }
+
+        // Terminal
+        const terminalLines = ["INITIALIZING BLACKWORM v3.0...","BYPASSING SECURITY PROTOCOLS...","ENCRYPTING USER FILES...","SPREADING TO NETWORK...","EXFILTRATING CREDENTIALS...","DELETING SYSTEM RESTORE POINTS...","SYSTEM INTEGRITY: 0%","FINAL PAYLOAD DEPLOYED"];
+        let lineIndex = 0;
+        function typeTerminal() {
+            const out = document.getElementById('terminal-output');
+            if (lineIndex < terminalLines.length) {
+                const div = document.createElement('div');
+                div.textContent = '> ' + terminalLines[lineIndex];
+                out.appendChild(div);
+                out.scrollTop = out.scrollHeight;
+                keyboardTypingSound();
+                lineIndex++;
+                setTimeout(typeTerminal, 450 + Math.random() * 550);
+            } else {
+                setTimeout(() => { out.innerHTML = ''; lineIndex = 0; typeTerminal(); }, 2800);
+            }
+        }
+
+        // Infection Bar
+        let progress = 0;
+        const panicMessages = ["HACKING SENSITIVE DATA...","DELETING SYSTEM FILES...","CORRUPTING HARD DRIVE...","ENCRYPTING ALL DOCUMENTS...","STEALING PERSONAL INFORMATION...","FORMATTING C: DRIVE...","UPLOADING FILES TO SERVER...","DESTROYING BOOT SECTOR..."];
+        let panicIndex = 0;
+
+        function startInfectionBar() {
+            const inner = document.getElementById('progress-inner');
+            setInterval(() => {
+                progress += Math.random() * 7 + 3;
+                if (progress > 100) progress = 100;
+                inner.style.width = progress + '%';
+                let txt = `INFECTING SYSTEM... ${Math.floor(progress)}%`;
+                if (progress >= 100) {
+                    txt = panicMessages[panicIndex % panicMessages.length];
+                    panicIndex++;
+                    glitchSound();
+                    setTimeout(() => { progress = 0; inner.style.width = '0%'; }, 900);
+                }
+                inner.setAttribute('data-text', txt);
+            }, 160);
+        }
+
+        // Countdown
+        let countdownTime = 120;
+        function startCountdown() {
+            const timer = document.getElementById('timer');
+            setInterval(() => {
+                countdownTime--;
+                const m = Math.floor(countdownTime/60);
+                const s = countdownTime % 60;
+                timer.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                if (countdownTime <= 0) showFinalPanicScreen();
+            }, 1000);
+        }
+
+        function showFinalPanicScreen() {
+            document.getElementById('main-warning').textContent = "ALL DATA DELETED";
+            document.getElementById('main-warning').style.fontSize = "7vw";
+
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.98);z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#ff0000;font-size:4.5vw;text-align:center;text-shadow:0 0 40px #ff0000;`;
+            overlay.innerHTML = `
+                <div style="margin-bottom:40px">CRITICAL SYSTEM FAILURE</div>
+                <div style="font-size:3.2vw;margin-bottom:30px">ALL YOUR FILES HAVE BEEN DELETED</div>
+                <div style="font-size:2.8vw;color:#ffff00">BLACKWORM v3.0 HAS SUCCESSFULLY DESTROYED YOUR SYSTEM</div>
+                <div style="margin-top:60px;font-size:2.2vw">REBOOTING WILL NOT RECOVER YOUR DATA</div>
+            `;
+            document.body.appendChild(overlay);
+            glitchSound();
+            setTimeout(() => location.reload(), 6500);
+        }
+
+        function startFakeCursor() {
+            const cursor = document.getElementById('fake-cursor');
+            document.addEventListener('mousemove', e => {
+                let x = e.clientX, y = e.clientY;
+                if (Math.random() > 0.75) { x += Math.random()*60-30; y += Math.random()*60-30; }
+                cursor.style.left = x + 'px';
+                cursor.style.top = y + 'px';
+            });
+        }
+
+        // ==================== START ALL ====================
+        function activateVirus() {
+            initAudio();
+            startAlarm();
+            startMatrix();
+            startInfectionBar();
+            startCountdown();
+            typeTerminal();
+            startFakeCursor();
+
+            setTimeout(() => createPopup(), 600);
+            setTimeout(() => createPopup(), 1300);
+            setTimeout(() => createPopup(), 2100);
+
+            setInterval(() => {
+                if (Math.random() > 0.55 && popupCount < 18) createPopup();
+            }, 1900);
+
+            const warnings = ["SYSTEM COMPROMISED","TROJAN ACTIVE","FILES BEING DELETED","WORM SPREADING","CRITICAL FAILURE","DATA CORRUPTED","BLACKWORM v3.0"];
+            let i = 0;
+            setInterval(() => {
+                document.getElementById('main-warning').textContent = warnings[i++ % warnings.length];
+            }, 1600);
+
+            setInterval(() => { if (Math.random() > 0.65) glitchSound(); }, 1400);
+
+            document.addEventListener('contextmenu', e => e.preventDefault());
+        }
+
+        window.onload = activateVirus;
+    </script>
+</body>
+</html>
